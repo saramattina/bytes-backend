@@ -11,6 +11,9 @@ class Recipe(models.Model):
     favorite = models.BooleanField(default=False)
     image = models.ImageField(upload_to="recipes/", blank=True, null=True)
 
+    def __str__(self):
+        return self.title
+
 
 class Ingredient(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='ingredients')
@@ -33,8 +36,14 @@ class Ingredient(models.Model):
         max_length=10, choices=WeightUnits.choices, blank=True, null=True
     )
 
+    def __str__(self):
+        return self.name
+
 
 class Step(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='steps')
     step = models.IntegerField()
     description = models.TextField(max_length=250)
+
+    def __str__(self):
+        return self.step
