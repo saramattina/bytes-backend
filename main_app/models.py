@@ -16,7 +16,7 @@ class Recipe(models.Model):
 
 
 class Ingredient(models.Model):
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='ingredients')
     name = models.CharField(max_length=100)
     quantity = models.FloatField()
 
@@ -41,7 +41,7 @@ class Ingredient(models.Model):
 
 
 class Step(models.Model):
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='steps')
     step = models.IntegerField()
     description = models.TextField(max_length=250)
 
