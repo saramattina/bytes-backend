@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from .models import Recipe, Ingredient, Step
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -29,3 +30,23 @@ class UserSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
+
+class IngredientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ingredient
+        fields = '__all__'
+
+class StepSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Step
+        fields = '__all__'
+
+class RecipeSerializer(serializers.ModelSerializer):
+    ingredients = IngredientSerializer(many=True, read_only=True)
+    steps = StepSerializer(many=True, read_only=True)
+    user = serializers.ReadOnlyField(source='user.username')
+
+    class Meta:
+        model = Recipe
+        fields = ['id', 'user', 'title', 'notes', 'favorite', 'image', 'ingredients', 'steps']
+
