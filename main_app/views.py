@@ -78,18 +78,42 @@ class RecipeDetail(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
         return Recipe.objects.filter(user=user)
     
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+class IngredientList(generics.ListCreateAPIView):
+    serializer_class = IngredientSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-    def perform_update(self, serializer):
-        recipe = self.get_object()
-        if recipe.user != self.request.user:
-            raise PermissionDenied("You do not have permission to edit this recipe.")
-        serializer.save()
+    def get_queryset(self):
+        user = self.request.user
+        return Ingredient.objects.filter(user=user)
 
-    def perform_destroy(self, instance):
-        if instance.user != self.request.user:
-            raise PermissionDenied("You do not have permission to delete this recipe.")
-        instance.delete()
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+        
+class IngredientDetail(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = IngredientSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        user = self.request.user
+        return Ingredient.objects.filter(user=user)
+
+class StepList(generics.ListCreateAPIView):
+    serializer_class = StepSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Step.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+        
+class StepDetail(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = StepSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        user = self.request.user
+        return Step.objects.filter(user=user)
