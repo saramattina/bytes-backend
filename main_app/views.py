@@ -8,12 +8,11 @@ from django.contrib.auth.models import User
 from .models import Recipe, Ingredient, Step
 from .serializers import UserSerializer, RecipeSerializer, IngredientSerializer, StepSerializer
 
-# Create your views here.
 class Home(APIView):
     def get(self, request):
         return Response({"message": "Welcome to the Recipe Collector API!"})
     
-class LoginView(generics.GenericAPIView):
+class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -31,7 +30,7 @@ class LoginView(generics.GenericAPIView):
         else:
             return Response({"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
     
-class SignUp(generics.GenericAPIView):
+class SignUp(generics.CreateAPIView):
     queryset= User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
