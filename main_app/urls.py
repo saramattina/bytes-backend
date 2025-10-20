@@ -9,9 +9,9 @@ urlpatterns = [
     path("users/sign-up/", SignUpView.as_view(), name="sign-up"),
     path('users/token/refresh/', VerifyUserView.as_view(), name='token_refresh'),
     path("recipes/", RecipeList.as_view(), name="recipe-list"),
-    path("recipes/<int:id>", RecipeDetail.as_view(), name="recipe-detail"),
+    path("recipes/<int:id>/", RecipeDetail.as_view(), name="recipe-detail"),
     path("recipes/<int:recipe_id>/ingredients/", IngredientList.as_view(), name="ingredient-list"),
-    path("recipes/<int:recipe_id>/ingredients/<int:id>", IngredientDetail.as_view(), name="ingredient-detail"),
+    path("recipes/<int:recipe_id>/ingredients/<int:id>/", IngredientDetail.as_view(), name="ingredient-detail"),
     path("recipes/<int:recipe_id>/steps/", StepList.as_view(), name="step-list"),
     path("recipes/<int:recipe_id>/steps/<int:id>/", StepDetail.as_view(), name="step-detail")
 ]
