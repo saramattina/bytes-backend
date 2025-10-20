@@ -120,4 +120,4 @@ class StepDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Ingredient.objects.filter(recipe__user=user)
+        return Step.objects.filter(recipe__user=user)
