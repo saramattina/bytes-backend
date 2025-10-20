@@ -97,7 +97,7 @@ class IngredientDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Ingredient.objects.filter(user=user)
+        return Ingredient.objects.filter(recipe__user=user)
 
 class StepList(generics.ListCreateAPIView):
     serializer_class = StepSerializer
@@ -120,4 +120,4 @@ class StepDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Step.objects.filter(user=user)
+        return Ingredient.objects.filter(recipe__user=user)
