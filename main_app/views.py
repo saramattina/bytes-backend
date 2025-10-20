@@ -12,7 +12,7 @@ class Home(APIView):
     def get(self, request):
         return Response({"message": "Welcome to the Recipe Collector API!"})
     
-class LoginView(APIView):
+class SignInView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -30,7 +30,7 @@ class LoginView(APIView):
         else:
             return Response({"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
     
-class SignUp(generics.CreateAPIView):
+class SignUpView(generics.CreateAPIView):
     queryset= User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
