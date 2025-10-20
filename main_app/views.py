@@ -46,16 +46,16 @@ class SignUpView(generics.CreateAPIView):
         })
 
 class VerifyUserView(APIView):
-  permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
-  def get(self, request):
-    user = User.objects.get(username=request.user)  # Fetch user profile
-    refresh = RefreshToken.for_user(request.user)  # Generate new refresh token
-    return Response({
-      'refresh': str(refresh),
-      'access': str(refresh.access_token),
-      'user': UserSerializer(user).data
-    })
+    def get(self, request):
+        refresh = RefreshToken.for_user(request.user)
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': UserSerializer(request.user).data
+        })
+
     
 class RecipeList(generics.ListCreateAPIView):
     serializer_class = RecipeSerializer
@@ -83,10 +83,12 @@ class IngredientList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Ingredient.objects.filter(user=user)
+        return Ingredient.objects.filter(recipe__user=user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        recipe_id = self.request.data.get('recipe')
+        recipe = Recipe.objects.get(id=recipe_id, user=self.request.user)
+        serializer.save(recipe=recipe)
         
 class IngredientDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = IngredientSerializer
@@ -103,10 +105,13 @@ class StepList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Step.objects.filter(user=user)
+        return Step.objects.filter(recipe__user=user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        recipe_id = self.request.data.get('recipe')
+        recipe = Recipe.objects.get(id=recipe_id, user=self.request.user)
+        serializer.save(recipe=recipe)
+
         
 class StepDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = StepSerializer
