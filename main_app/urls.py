@@ -13,5 +13,5 @@ urlpatterns = [
     path("recipes/<int:recipe_id>/ingredients/", IngredientList.as_view(), name="ingredient-list"),
     path("recipes/<int:recipe_id>/ingredients/<int:id>", IngredientDetail.as_view(), name="ingredient-detail"),
     path("recipes/<int:recipe_id>/steps/", StepList.as_view(), name="step-list"),
-    path("recipes/<int:recipe_id>/step/<int:id>", StepDetail.as_view(), name="step-detail")
+    path("recipes/<int:recipe_id>/steps/<int:id>/", StepDetail.as_view(), name="step-detail")
 ]
