@@ -6,12 +6,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Recipe, Ingredient, Step
+from .models import Recipe, Ingredient, Step, GroceryListItem
 from .serializers import (
     UserSerializer,
     RecipeSerializer,
     IngredientSerializer,
     StepSerializer,
+    GroceryListItemSerializer,
 )
 
 # GENERAL / AUTH VIEWS
@@ -134,6 +135,99 @@ class IngredientDetail(generics.RetrieveUpdateDestroyAPIView):
             recipe_id=recipe_id,
         )
 
+# GROCERY LIST VIEWS
+class GroceryListView(generics.ListAPIView):
+    serializer_class = GroceryListItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return GroceryListItem.objects.filter(user=self.request.user).order_by('-created_at')
+
+
+class AddRecipeToGroceryListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, recipe_id):
+        try:
+            recipe = Recipe.objects.get(id=recipe_id, user=request.user)
+            ingredients = recipe.ingredients.all()
+            
+            added_count = 0
+            updated_count = 0
+            
+            # Add each ingredient to grocery list
+            for ingredient in ingredients:
+                # Check if item with same name and units already exists
+                existing_item = GroceryListItem.objects.filter(
+                    user=request.user,
+                    name__iexact=ingredient.name,  # Case-insensitive name match
+                    volume_unit=ingredient.volume_unit,
+                    weight_unit=ingredient.weight_unit
+                ).first()
+                
+                if existing_item:
+                    # If exists with matching units, add quantities together
+                    existing_item.quantity += ingredient.quantity
+                    existing_item.checked = False  # Uncheck when adding more
+                    existing_item.save()
+                    updated_count += 1
+                else:
+                    # Create new item if no match found
+                    GroceryListItem.objects.create(
+                        user=request.user,
+                        name=ingredient.name,
+                        quantity=ingredient.quantity,
+                        volume_unit=ingredient.volume_unit,
+                        weight_unit=ingredient.weight_unit
+                    )
+                    added_count += 1
+            
+            message = []
+            if added_count > 0:
+                message.append(f"Added {added_count} new ingredient(s)")
+            if updated_count > 0:
+                message.append(f"Updated {updated_count} existing ingredient(s)")
+            
+            return Response(
+                {"message": " and ".join(message) + " to grocery list"},
+                status=status.HTTP_201_CREATED
+            )
+        except Recipe.DoesNotExist:
+            return Response(
+                {"error": "Recipe not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class UpdateGroceryListItemView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, item_id):
+        try:
+            item = GroceryListItem.objects.get(id=item_id, user=request.user)
+            item.checked = request.data.get('checked', item.checked)
+            item.save()
+            return Response(GroceryListItemSerializer(item).data)
+        except GroceryListItem.DoesNotExist:
+            return Response(
+                {"error": "Item not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class ClearCheckedItemsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        deleted_count = GroceryListItem.objects.filter(
+            user=request.user,
+            checked=True
+        ).delete()[0]
+        
+        return Response(
+            {"message": f"Removed {deleted_count} items from grocery list"},
+            status=status.HTTP_200_OK
+        )
 
 # STEP VIEWS
 class StepList(generics.ListCreateAPIView):
