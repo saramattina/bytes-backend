@@ -4,7 +4,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     Home, SignInView, SignUpView, VerifyUserView,
     RecipeList, RecipeDetail, IngredientList, IngredientDetail, StepList, StepDetail,
-    GroceryListView, AddRecipeToGroceryListView, UpdateGroceryListItemView, ClearCheckedItemsView
+    GroceryListView, AddRecipeToGroceryListView, UpdateGroceryListItemView, ClearCheckedItemsView,
+    UpdateUsernameView, UpdatePasswordView, DeleteAccountView  # Add these
 )
 
 urlpatterns = [
@@ -29,4 +30,9 @@ urlpatterns = [
     path("grocery-list/add-recipe/<int:recipe_id>/", AddRecipeToGroceryListView.as_view(), name="add-recipe-to-grocery"),
     path("grocery-list/item/<int:item_id>/", UpdateGroceryListItemView.as_view(), name="update-grocery-item"),
     path("grocery-list/clear-checked/", ClearCheckedItemsView.as_view(), name="clear-checked-items"),
+
+    # User Profile
+    path("users/update-username/", UpdateUsernameView.as_view(), name="update-username"),
+    path("users/update-password/", UpdatePasswordView.as_view(), name="update-password"),
+    path("users/delete-account/", DeleteAccountView.as_view(), name="delete-account"),
 ]

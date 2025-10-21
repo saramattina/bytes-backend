@@ -258,3 +258,107 @@ class StepDetail(generics.RetrieveUpdateDestroyAPIView):
             recipe__user=self.request.user,
             recipe_id=recipe_id,
         )
+
+# USER PROFILE VIEWS
+class UpdateUsernameView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        new_username = request.data.get('username', '').strip()
+        
+        if not new_username:
+            return Response(
+                {"username": ["Username is required."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(new_username) < 3:
+            return Response(
+                {"username": ["Username must be at least 3 characters."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if username already exists (excluding current user)
+        if User.objects.filter(username=new_username).exclude(id=user.id).exists():
+            return Response(
+                {"username": ["A user with that username already exists."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        user.username = new_username
+        user.save()
+        
+        return Response(
+            {"message": "Username updated successfully", "user": UserSerializer(user).data},
+            status=status.HTTP_200_OK
+        )
+
+
+class UpdatePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+        
+        errors = {}
+        
+        # Validate current password
+        if not current_password:
+            errors['current_password'] = ["Current password is required."]
+        elif not user.check_password(current_password):
+            errors['current_password'] = ["Current password is incorrect."]
+        
+        # Validate new password
+        if not new_password:
+            errors['new_password'] = ["New password is required."]
+        elif len(new_password) < 6:
+            errors['new_password'] = ["Password must be at least 6 characters."]
+        
+        # Validate confirm password
+        if not confirm_password:
+            errors['confirm_password'] = ["Please confirm your new password."]
+        elif new_password != confirm_password:
+            errors['confirm_password'] = ["Passwords do not match."]
+        
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update password
+        user.set_password(new_password)
+        user.save()
+        
+        return Response(
+            {"message": "Password updated successfully"},
+            status=status.HTTP_200_OK
+        )
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        password = request.data.get('password')
+        
+        if not password:
+            return Response(
+                {"password": ["Password is required to delete account."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not request.user.check_password(password):
+            return Response(
+                {"password": ["Incorrect password."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Delete user (cascade will delete all associated recipes, ingredients, steps, grocery items)
+        request.user.delete()
+        
+        return Response(
+            {"message": "Account deleted successfully"},
+            status=status.HTTP_200_OK
+        )
