@@ -1,13 +1,22 @@
 from django.contrib import admin
 from django.urls import path
-from .views import Home, SignInView, SignUpView, VerifyUserView, RecipeList, RecipeDetail, IngredientList, IngredientDetail, StepList, StepDetail
+from rest_framework_simplejwt.views import TokenRefreshView
+from .views import (
+    Home, SignInView, SignUpView, VerifyUserView,
+    RecipeList, RecipeDetail, IngredientList, IngredientDetail, StepList, StepDetail
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("", Home.as_view(), name="home"),
+
+    # Auth
     path("users/sign-in/", SignInView.as_view(), name="sign-in"),
     path("users/sign-up/", SignUpView.as_view(), name="sign-up"),
-    path('users/token/refresh/', VerifyUserView.as_view(), name='token_refresh'),
+    path("users/verify/", VerifyUserView.as_view(), name="verify-user"),
+    path('users/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+    # Recipes
     path("recipes/", RecipeList.as_view(), name="recipe-list"),
     path("recipes/<int:id>/", RecipeDetail.as_view(), name="recipe-detail"),
     path("recipes/<int:recipe_id>/ingredients/", IngredientList.as_view(), name="ingredient-list"),
