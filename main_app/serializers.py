@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from .models import Recipe, Ingredient, Step
+from .models import Recipe, Ingredient, Step, GroceryListItem
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -37,6 +37,13 @@ class IngredientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ingredient
         fields = "__all__"
+
+
+class GroceryListItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GroceryListItem
+        fields = ["id", "user", "name", "quantity", "volume_unit", "weight_unit", "checked", "created_at"]
+        read_only_fields = ["id", "user", "created_at"]
 
 
 class StepSerializer(serializers.ModelSerializer):
