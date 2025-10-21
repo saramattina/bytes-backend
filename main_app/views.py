@@ -16,7 +16,6 @@ from .serializers import (
 )
 
 # GENERAL / AUTH VIEWS
-
 class Home(APIView):
     def get(self, request):
         return Response({"message": "Welcome to the Recipe Collector API!"})
