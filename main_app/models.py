@@ -1,9 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-# Create your models here.
-
-
 class Recipe(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=100)
@@ -39,6 +36,18 @@ class Ingredient(models.Model):
     def __str__(self):
         return self.name
 
+class GroceryListItem(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    quantity = models.FloatField()
+    volume_unit = models.CharField(max_length=10, blank=True, null=True)
+    weight_unit = models.CharField(max_length=10, blank=True, null=True)
+    checked = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.user.username}"
+
 
 class Step(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='steps')
@@ -46,4 +55,5 @@ class Step(models.Model):
     description = models.TextField(max_length=250)
 
     def __str__(self):
-        return self.step
+        return f"Step {self.step}: {self.description[:30]}"
+
