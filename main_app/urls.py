@@ -5,7 +5,7 @@ from .views import (
     Home, SignInView, SignUpView, VerifyUserView,
     RecipeList, RecipeDetail, IngredientList, IngredientDetail, StepList, StepDetail,
     GroceryListView, AddRecipeToGroceryListView, UpdateGroceryListItemView, ClearCheckedItemsView,
-    UpdateUsernameView, UpdatePasswordView, DeleteAccountView  # Add these
+    UpdateUsernameView, UpdateEmailView, UpdatePasswordView, DeleteAccountView
 )
 
 urlpatterns = [
@@ -33,6 +33,7 @@ urlpatterns = [
 
     # User Profile
     path("users/update-username/", UpdateUsernameView.as_view(), name="update-username"),
+    path("users/update-email/", UpdateEmailView.as_view(), name="update-email"),
     path("users/update-password/", UpdatePasswordView.as_view(), name="update-password"),
     path("users/delete-account/", DeleteAccountView.as_view(), name="delete-account"),
 ]

@@ -294,6 +294,42 @@ class UpdateUsernameView(APIView):
             status=status.HTTP_200_OK
         )
 
+class UpdateEmailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        new_email = request.data.get('email', '').strip()
+        
+        if not new_email:
+            return Response(
+                {"email": ["Email is required."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Basic email validation
+        import re
+        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_pattern, new_email):
+            return Response(
+                {"email": ["Enter a valid email address."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if email already exists (excluding current user)
+        if User.objects.filter(email=new_email).exclude(id=user.id).exists():
+            return Response(
+                {"email": ["This email is already registered."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        user.email = new_email
+        user.save()
+        
+        return Response(
+            {"message": "Email updated successfully", "user": UserSerializer(user).data},
+            status=status.HTTP_200_OK
+        )
 
 class UpdatePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
