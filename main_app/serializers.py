@@ -10,7 +10,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "password", "password2")
+        fields = ['id', 'username', 'email', 'password', 'password2']
         read_only_fields = ["id"]
 
     def validate_email(self, value):
@@ -66,6 +66,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             "notes",
             "favorite",
             "image",
+            "tags",
             "ingredients",
             "steps",
         ]
