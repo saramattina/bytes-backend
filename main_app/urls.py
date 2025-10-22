@@ -9,7 +9,6 @@ from .views import (
 )
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path("", Home.as_view(), name="home"),
     # Auth
     path("users/sign-in/", SignInView.as_view(), name="sign-in"),
