@@ -70,3 +70,8 @@ class RecipeSerializer(serializers.ModelSerializer):
             "ingredients",
             "steps",
         ]
+        extra_kwargs = {
+            "notes": {"allow_blank": True, "required": False},
+            "image": {"required": False, "allow_null": True},
+            "tags": {"required": False},
+        }
