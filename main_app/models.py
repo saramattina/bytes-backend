@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 class Recipe(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=100)
-    notes = models.TextField(max_length=250)
+    notes = models.TextField(max_length=250, blank=True)
     favorite = models.BooleanField(default=False)
     image = models.ImageField(upload_to="recipes/", blank=True, null=True)
     tags = models.JSONField(default=list, blank=True)
