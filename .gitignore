@@ -1,6 +1,3 @@
 recipes/
-<<<<<<< HEAD
 Pipfile.lock
-=======
-pipfile.lock
->>>>>>> 808649c124dde79d1a72f3ac1e863e398123e177
+__pycache__
