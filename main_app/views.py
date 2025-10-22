@@ -198,14 +198,24 @@ class AddRecipeToGroceryListView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-
 class UpdateGroceryListItemView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def patch(self, request, item_id):
         try:
             item = GroceryListItem.objects.get(id=item_id, user=request.user)
+            
+            # Update all provided fields
             item.checked = request.data.get('checked', item.checked)
+            
+            # Allow updating quantity and units
+            if 'quantity' in request.data:
+                item.quantity = request.data.get('quantity')
+            if 'volume_unit' in request.data:
+                item.volume_unit = request.data.get('volume_unit')
+            if 'weight_unit' in request.data:
+                item.weight_unit = request.data.get('weight_unit')
+            
             item.save()
             return Response(GroceryListItemSerializer(item).data)
         except GroceryListItem.DoesNotExist:
@@ -214,6 +224,15 @@ class UpdateGroceryListItemView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+class AddGroceryListItemView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = GroceryListItemSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ClearCheckedItemsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
