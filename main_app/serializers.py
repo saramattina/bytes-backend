@@ -1,6 +1,9 @@
+import json
+
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+
 from .models import Recipe, Ingredient, Step, GroceryListItem
 
 
@@ -56,6 +59,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     ingredients = IngredientSerializer(many=True, read_only=True)
     steps = StepSerializer(many=True, read_only=True)
     user = serializers.ReadOnlyField(source="user.username")
+    image = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Recipe
@@ -75,3 +79,43 @@ class RecipeSerializer(serializers.ModelSerializer):
             "image": {"required": False, "allow_null": True},
             "tags": {"required": False},
         }
+
+    def validate_tags(self, value):
+        """
+        Accept JSON strings from multipart form submissions and convert to lists.
+        """
+        if isinstance(value, str):
+            if not value:
+                return []
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError("Invalid JSON for tags.") from exc
+            if not isinstance(parsed, list):
+                raise serializers.ValidationError("Tags must be provided as a list.")
+            return parsed
+        return value
+
+    def validate_favorite(self, value):
+        """
+        Convert common string representations to booleans when using FormData.
+        """
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "on"}:
+                return True
+            if lowered in {"false", "0", "no", "off", ""}:
+                return False
+        return bool(value)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.image:
+            storage = getattr(instance.image, "storage", None)
+            if storage:
+                data["image"] = storage.url(instance.image.name)
+            else:
+                data["image"] = instance.image.url
+        else:
+            data["image"] = None
+        return data

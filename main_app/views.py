@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework import generics, status, permissions
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -100,6 +101,7 @@ class VerifyUserView(APIView):
 class RecipeList(generics.ListCreateAPIView):
     serializer_class = RecipeSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
@@ -112,9 +114,38 @@ class RecipeDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = RecipeSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = "id"
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+
+        # Remove current image if requested
+        if data.get("image") == "":
+            if instance.image:
+                instance.image.delete(save=False)
+            data.pop("image")
+
+        # Replace existing image when a new one is uploaded
+        if "image" in request.FILES and instance.image:
+            instance.image.delete(save=False)
+
+        serializer = self.get_serializer(instance, data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # Delete the image file before deleting the recipe
+        if instance.image:
+            instance.image.delete(save=False)
+        
+        return super().destroy(request, *args, **kwargs)
 
 
 # INGREDIENT VIEWS
