@@ -5,6 +5,11 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from openai import OpenAI
+import json
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework import permissions
 
 
 from .models import Recipe, Ingredient, Step, GroceryListItem
@@ -396,13 +401,6 @@ class DeleteAccountView(APIView):
         )
 
 
-from openai import OpenAI
-import json
-from django.conf import settings
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework import permissions
-
-
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def generate_recipe(request):
@@ -411,34 +409,67 @@ def generate_recipe(request):
     Return a JSON structure ready for preview on the frontend.
     """
     user_prompt = request.data.get("prompt", "").strip()
+    tags = request.data.get("tags", [])
     if not user_prompt:
         return Response({"error": "Prompt is required"}, status=400)
 
+    tags_text = ", ".join(tags) if tags else "no diatary tags"
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     system_instructions = """
-    you are a recipe generator AI.
-    Generate A recipe in JSON format only.
-    it must include:
-    - title (string)
-    - notes (string, short description)
-    - ingredients (list of objects: name, quantity, and either volume_unit or weight_unit)
-    - steps (list of objects: step and description)
-    Example JSON:
-    {
-        "title": "Banana Protein Pancakes",
-        "notes": "Healthy and high-protein breakfest option.",
-        "ingredients": [
-            {"name": "Banana", "quantity": 1, "weight_unit": null, "volume_unit": null},
-            {"name": "Egg", "quantity": 1, "weight_unit": null, "volume_unit": null},
-            {"name": "Oats", "quantity": 50, "weight_unit": "g", "volume_unit": null},
-        ],
-        "steps": [
-            {"step": 1, "description": "Mash the banana."}
-            {"step": 2, "description": "Mix in egg and oats."}
-            {"step": 3, "description": "Cook on pan until golden."}
-        ]
+    You are a professional chef and nutrition-focused recipe generator AI.
+    Your goal is to generate **delicious, realistic, step-by-step recipes** for a cooking app.
+    All responses must be **valid JSON only** — no text outside the JSON block.
 
-    }      
+    Each recipe must include:
+    - title (string)
+    - notes (short description, 1–3 sentences about flavor and nutrition, and total cook/prep time)
+    - tags (list of lowercase strings, e.g. ["contains_dairy", "spicy"])
+    - ingredients (list of objects: {name, quantity, volume_unit, weight_unit})
+    - steps (list of objects: {step (int), description (string)})
+
+    Ingredient Rules:
+    - Use only these allowed `volume_unit` values: ["tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "ml", "l"]
+    - Use only these allowed `weight_unit` values: ["g", "kg", "oz", "lb"]
+    - Each ingredient must include **either/none** volume_unit or weight_unit (never both).
+    - If a real-world ingredient doesn't use a measurable unit like "clove" or "slice", convert it into a measurable one (e.g., 1 garlic clove → 1 tsp minced garlic), or if that’s not possible, set both units to null and specify the non-measurable form directly in the ingredient name (e.g., "Garlic Clove", quantity: 1).
+
+    **Cooking & Flavor Style:**
+    - Always include realistic cooking details:
+        - Mention time ranges, heat levels, and visual/tactile cues (“until golden”, “until thickened”).
+        - For meats: specify doneness cues, internal temperature, and flipping instructions.
+        - For grains or oats: specify exact cooking times and methods (e.g., “microwave on high for 90 seconds, stir, and rest 30 seconds”).
+        - For sauces/dressings: include whisking, blending, or reduction steps as appropriate.
+    - Recipes must taste balanced and delicious — combine herbs, spices, and sauces creatively but realistically.
+
+    **Output format:**  
+    Return only valid JSON following this structure.
+    
+    Example JSON (detailed):
+
+    {
+    "title": "Creamy Spicy Chicken Rice Bowl",
+    "notes": "A flavorful, high-protein rice bowl with tender chicken, sautéed spinach, and a creamy yogurt-sriracha sauce. Cook time: 20 minutes, prep time: 15 minutes",
+    "tags": ["contains_dairy", "spicy"],
+    "ingredients": [
+        {"name": "Chicken Breast", "quantity": 200, "weight_unit": "g", "volume_unit": null},
+        {"name": "Olive Oil", "quantity": 1, "weight_unit": null, "volume_unit": "tbsp"},
+        {"name": "Garlic Powder", "quantity": 0.5, "weight_unit": null, "volume_unit": "tsp"},
+        {"name": "Paprika", "quantity": 0.5, "weight_unit": null, "volume_unit": "tsp"},
+        {"name": "Cooked Rice", "quantity": 150, "weight_unit": "g", "volume_unit": null},
+        {"name": "Fresh Spinach", "quantity": 80, "weight_unit": "g", "volume_unit": null},
+        {"name": "Greek Yogurt", "quantity": 60, "weight_unit": "g", "volume_unit": null},
+        {"name": "Sriracha", "quantity": 1, "weight_unit": null, "volume_unit": "tbsp"},
+        {"name": "Salt", "quantity": 1, "weight_unit": null, "volume_unit": "tsp"},
+        {"name": "Black Pepper", "quantity": 0.5, "weight_unit": null, "volume_unit": "tsp"}
+    ],
+    "steps": [
+        {"step": 1, "description": "Pat the chicken dry and season both sides with salt, pepper, garlic powder, and paprika."},
+        {"step": 2, "description": "Heat olive oil in a skillet over medium-high heat. Add the chicken and sear for 5–6 minutes per side until golden and cooked through (internal temp 74°C / 165°F)."},
+        {"step": 3, "description": "Remove chicken and rest for 2–3 minutes before slicing thinly."},
+        {"step": 4, "description": "In the same pan, add spinach and sauté for 1–2 minutes until wilted."},
+        {"step": 5, "description": "In a bowl, mix Greek yogurt and sriracha until creamy and orange in color."},
+        {"step": 6, "description": "Assemble the bowl: layer rice, spinach, and sliced chicken. Drizzle the yogurt-sriracha sauce on top and serve warm."}
+    ]
     """
 
     try:
@@ -446,8 +477,13 @@ def generate_recipe(request):
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_instructions},
-                {"role": "user", "content": user_prompt},
+                {
+                    "role": "user",
+                    "content": f"Generate a recipe based on this request: '{user_prompt}'."
+                    f"The recipe should align with these tags: '{tags_text}",
+                },
             ],
+            response_format={"type": "json_object"},
             temperature=0.7,
         )
 
