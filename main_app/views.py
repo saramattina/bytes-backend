@@ -120,7 +120,7 @@ class RecipeDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
-    
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         data = request.data.copy()
@@ -139,14 +139,14 @@ class RecipeDetail(generics.RetrieveUpdateDestroyAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
-    
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        
+
         # Delete the image file before deleting the recipe
         if instance.image:
             instance.image.delete(save=False)
-        
+
         return super().destroy(request, *args, **kwargs)
 
 
@@ -235,9 +235,15 @@ class AddRecipeToGroceryListView(APIView):
                 message_parts.append(f"Added {added_count} new ingredient(s)")
             if updated_count > 0:
                 connector = "updated" if message_parts else "Updated"
-                message_parts.append(f"{connector} {updated_count} existing ingredient(s)")
+                message_parts.append(
+                    f"{connector} {updated_count} existing ingredient(s)"
+                )
 
-            message_text = " and ".join(message_parts) + " to grocery list" if message_parts else "No changes made to grocery list"
+            message_text = (
+                " and ".join(message_parts) + " to grocery list"
+                if message_parts
+                else "No changes made to grocery list"
+            )
 
             return Response(
                 {"message": message_text},
@@ -299,11 +305,7 @@ class AddGroceryListItemView(APIView):
 
         if volume_unit and weight_unit:
             return Response(
-                {
-                    "units": [
-                        "Provide either a volume unit or a weight unit, not both."
-                    ]
-                },
+                {"units": ["Provide either a volume unit or a weight unit, not both."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -581,7 +583,7 @@ def generate_recipe(request):
 
     Each recipe must include:
     - title (string)
-    - notes (short description, 1–3 sentences about flavor and nutrition, and total cook/prep time)
+    - notes (short description, 1–3 sentences about flavor and nutrition, total cook/prep time, macros for the recipe)
     - tags (list of lowercase strings, e.g. ["contains_dairy", "spicy"])
     - ingredients (list of objects: {name, quantity, volume_unit, weight_unit})
     - steps (list of objects: {step (int), description (string)})
@@ -660,6 +662,8 @@ def generate_recipe(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=500)
+
+
 # Unit conversion helpers for grocery list merging
 VOLUME_TO_ML = {
     "tsp": Decimal("4.92892"),
