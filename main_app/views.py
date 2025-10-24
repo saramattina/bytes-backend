@@ -12,7 +12,6 @@ from openai import OpenAI
 import json
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework import permissions
 
 
 from .models import Recipe, Ingredient, Step, GroceryListItem
@@ -23,6 +22,31 @@ from .serializers import (
     StepSerializer,
     GroceryListItemSerializer,
 )
+
+AI_ALLOWED_VOLUME_UNITS = {"tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "ml", "l"}
+AI_ALLOWED_WEIGHT_UNITS = {"g", "kg", "oz", "lb"}
+
+TAG_LABEL_MAP = {
+    "contains_dairy": "No Dairy",
+    "contains_eggs": "No Eggs",
+    "contains_gluten": "Gluten Free",
+    "contains_nuts": "No Nuts",
+    "contains_shellfish": "No Shellfish",
+    "spicy": "Spicy",
+    "vegan": "Vegan",
+    "vegetarian": "Vegetarian",
+}
+
+TAG_INSTRUCTION_MAP = {
+    "contains_dairy": "Recipe must be dairy free; avoid milk, cheese, butter, yogurt, and any dairy-derived ingredients.",
+    "contains_eggs": "Recipe must be egg free; do not include eggs or products made with eggs.",
+    "contains_gluten": "Recipe must be gluten free; avoid wheat, barley, rye, and any gluten-containing ingredient.",
+    "contains_nuts": "Recipe must be nut free; exclude tree nuts, peanuts, and nut oils or flours.",
+    "contains_shellfish": "Recipe must exclude shellfish including shrimp, crab, lobster, and mollusks.",
+    "spicy": "Recipe should include notable heat or spice in at least one component.",
+    "vegan": "Recipe must be fully plant based and contain no animal products.",
+    "vegetarian": "Recipe must be vegetarian; no meat, poultry, or seafood.",
+}
 
 # GENERAL / AUTH VIEWS
 
@@ -574,7 +598,10 @@ def generate_recipe(request):
     if not user_prompt:
         return Response({"error": "Prompt is required"}, status=400)
 
-    tags_text = ", ".join(tags) if tags else "no diatary tags"
+    tag_labels = [TAG_LABEL_MAP.get(tag, tag.replace("_", " ")) for tag in tags]
+    tag_instructions = [TAG_INSTRUCTION_MAP.get(tag) for tag in tags if TAG_INSTRUCTION_MAP.get(tag)]
+    tags_text = ", ".join(tag_labels) if tag_labels else "no dietary tags"
+    instruction_text = " ".join(tag_instructions) if tag_instructions else ""
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     system_instructions = """
     You are a professional chef and nutrition-focused recipe generator AI.
@@ -640,8 +667,11 @@ def generate_recipe(request):
                 {"role": "system", "content": system_instructions},
                 {
                     "role": "user",
-                    "content": f"Generate a recipe based on this request: '{user_prompt}'."
-                    f"The recipe should align with these tags: '{tags_text}",
+                    "content": (
+                        f"Generate a recipe based on this request: '{user_prompt}'. "
+                        f"The recipe should align with these tags: '{tags_text}'. "
+                        f"Dietary requirements: {instruction_text}"
+                    ),
                 },
             ],
             response_format={"type": "json_object"},
@@ -657,6 +687,28 @@ def generate_recipe(request):
                 {"error": "Failed to parse AI response as JSON", "raw": ai_output},
                 status=500,
             )
+
+        # Normalise ingredient units to our allowed set
+        for ingredient in recipe_json.get("ingredients", []):
+            volume_unit = ingredient.get("volume_unit")
+            weight_unit = ingredient.get("weight_unit")
+
+            if isinstance(volume_unit, str):
+                volume_unit = volume_unit.strip().lower() or None
+            if isinstance(weight_unit, str):
+                weight_unit = weight_unit.strip().lower() or None
+
+            if weight_unit and weight_unit in AI_ALLOWED_VOLUME_UNITS and not volume_unit:
+                volume_unit = weight_unit
+                weight_unit = None
+
+            if volume_unit and volume_unit not in AI_ALLOWED_VOLUME_UNITS:
+                volume_unit = None
+            if weight_unit and weight_unit not in AI_ALLOWED_WEIGHT_UNITS:
+                weight_unit = None
+
+            ingredient["volume_unit"] = volume_unit
+            ingredient["weight_unit"] = weight_unit
 
         return Response(recipe_json, status=200)
 
