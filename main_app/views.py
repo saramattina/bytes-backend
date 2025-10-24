@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework import generics, status, permissions
@@ -228,14 +230,17 @@ class AddRecipeToGroceryListView(APIView):
                     )
                     added_count += 1
 
-            message = []
+            message_parts = []
             if added_count > 0:
-                message.append(f"Added {added_count} new ingredient(s)")
+                message_parts.append(f"Added {added_count} new ingredient(s)")
             if updated_count > 0:
-                message.append(f"Updated {updated_count} existing ingredient(s)")
+                connector = "updated" if message_parts else "Updated"
+                message_parts.append(f"{connector} {updated_count} existing ingredient(s)")
+
+            message_text = " and ".join(message_parts) + " to grocery list" if message_parts else "No changes made to grocery list"
 
             return Response(
-                {"message": " and ".join(message) + " to grocery list"},
+                {"message": message_text},
                 status=status.HTTP_201_CREATED,
             )
         except Recipe.DoesNotExist:
@@ -274,10 +279,133 @@ class AddGroceryListItemView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = GroceryListItemSerializer(data=request.data)
+        data = request.data
+        name = data.get("name", "").strip()
+        quantity = data.get("quantity")
+        volume_unit = (data.get("volume_unit") or "").strip()
+        weight_unit = (data.get("weight_unit") or "").strip()
+
+        if not name:
+            return Response(
+                {"name": ["Name is required."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if quantity in (None, ""):
+            return Response(
+                {"quantity": ["Quantity is required."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if volume_unit and weight_unit:
+            return Response(
+                {
+                    "units": [
+                        "Provide either a volume unit or a weight unit, not both."
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            quantity_value = Decimal(str(quantity))
+        except (InvalidOperation, TypeError):
+            return Response(
+                {"quantity": ["Quantity must be a valid number."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        measurement_type = get_measurement_type(volume_unit, weight_unit)
+        if measurement_type == "volume" and volume_unit not in VOLUME_TO_ML:
+            return Response(
+                {"volume_unit": ["Invalid volume unit."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if measurement_type == "weight" and weight_unit not in WEIGHT_TO_GRAMS:
+            return Response(
+                {"weight_unit": ["Invalid weight unit."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing_items = GroceryListItem.objects.filter(
+            user=request.user, name__iexact=name
+        )
+
+        matching_item = None
+        if measurement_type == "volume":
+            matching_item = next(
+                (item for item in existing_items if item.volume_unit),
+                None,
+            )
+        elif measurement_type == "weight":
+            matching_item = next(
+                (item for item in existing_items if item.weight_unit),
+                None,
+            )
+        else:
+            matching_item = next(
+                (
+                    item
+                    for item in existing_items
+                    if not item.volume_unit and not item.weight_unit
+                ),
+                None,
+            )
+
+        if matching_item:
+            try:
+                if measurement_type == "volume":
+                    converted = convert_quantity(
+                        quantity_value,
+                        volume_unit,
+                        matching_item.volume_unit,
+                        VOLUME_TO_ML,
+                    )
+                    matching_item.quantity += float(converted)
+                elif measurement_type == "weight":
+                    converted = convert_quantity(
+                        quantity_value,
+                        weight_unit,
+                        matching_item.weight_unit,
+                        WEIGHT_TO_GRAMS,
+                    )
+                    matching_item.quantity += float(converted)
+                else:
+                    matching_item.quantity += float(quantity_value)
+
+                matching_item.checked = False
+                matching_item.save()
+                return Response(
+                    {
+                        "message": f"Updated grocery list item for {matching_item.name}.",
+                        "item": GroceryListItemSerializer(matching_item).data,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except ValueError:
+                return Response(
+                    {"units": ["Unable to merge due to incompatible units."]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # No matching item found, create a new one
+        serializer = GroceryListItemSerializer(
+            data={
+                "name": name,
+                "quantity": float(quantity_value),
+                "volume_unit": volume_unit,
+                "weight_unit": weight_unit,
+            }
+        )
         if serializer.is_valid():
-            serializer.save(user=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            item = serializer.save(user=request.user)
+            return Response(
+                {
+                    "message": f"Added {item.name} to grocery list.",
+                    "item": GroceryListItemSerializer(item).data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -532,3 +660,40 @@ def generate_recipe(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=500)
+# Unit conversion helpers for grocery list merging
+VOLUME_TO_ML = {
+    "tsp": Decimal("4.92892"),
+    "tbsp": Decimal("14.7868"),
+    "fl_oz": Decimal("29.5735"),
+    "cup": Decimal("236.588"),
+    "pt": Decimal("473.176"),
+    "qt": Decimal("946.353"),
+    "gal": Decimal("3785.41"),
+    "ml": Decimal("1"),
+    "l": Decimal("1000"),
+}
+
+WEIGHT_TO_GRAMS = {
+    "g": Decimal("1"),
+    "kg": Decimal("1000"),
+    "oz": Decimal("28.3495"),
+    "lb": Decimal("453.592"),
+}
+
+
+def convert_quantity(value, from_unit, to_unit, conversion_map):
+    """Convert between units of the same measurement type."""
+    if from_unit not in conversion_map or to_unit not in conversion_map:
+        raise ValueError("Unsupported unit conversion.")
+
+    value_decimal = Decimal(value)
+    base_value = value_decimal * conversion_map[from_unit]
+    return base_value / conversion_map[to_unit]
+
+
+def get_measurement_type(volume_unit, weight_unit):
+    if volume_unit:
+        return "volume"
+    if weight_unit:
+        return "weight"
+    return "count"
