@@ -701,9 +701,11 @@ def generate_recipe(request):
     - steps (list of objects: {step (int), description (string)})
 
     Ingredient Rules:
-    - Use only these allowed `volume_unit` values: ["tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "ml", "l"]
-    - Use only these allowed `weight_unit` values: ["g", "kg", "oz", "lb"]
+    - When it comes to volume/weight measurements, only use these allowed values:
+        AI_ALLOWED_VOLUME_UNITS = {"tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "ml", "l"}
+        AI_ALLOWED_WEIGHT_UNITS = {"g", "kg", "oz", "lb"}
     - Each ingredient must include **either/none** volume_unit or weight_unit (never both).
+    - It's okay to also use not volume/weight measurements, but if you don't then add it to the ingredient name with the syntax of "INGREDIENT-NAME (INGREDIENT-MEASUREMENT)"
     - If a real-world ingredient doesn't use a measurable unit like "clove" or "slice", convert it into a measurable one (e.g., 1 garlic clove → 1 tsp minced garlic), or if that’s not possible, set both units to null and specify the non-measurable form directly in the ingredient name (e.g., "Garlic Clove", quantity: 1).
 
     **Cooking & Flavor Style:**
