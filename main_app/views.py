@@ -37,6 +37,92 @@ TAG_LABEL_MAP = {
     "vegetarian": "Vegetarian",
 }
 
+UNIT_ALIAS_MAP = {
+    # Volume aliases
+    "tsp": "tsp",
+    "tsps": "tsp",
+    "teaspoon": "tsp",
+    "teaspoons": "tsp",
+    "tablespoon": "tbsp",
+    "tablespoons": "tbsp",
+    "tbsp": "tbsp",
+    "tbs": "tbsp",
+    "tbspn": "tbsp",
+    "tbspns": "tbsp",
+    "tbspoon": "tbsp",
+    "tbspoons": "tbsp",
+    "fl oz": "fl_oz",
+    "floz": "fl_oz",
+    "fluid ounce": "fl_oz",
+    "fluid ounces": "fl_oz",
+    "cups": "cup",
+    "cup": "cup",
+    "pt": "pt",
+    "pint": "pt",
+    "pints": "pt",
+    "qt": "qt",
+    "quart": "qt",
+    "quarts": "qt",
+    "gal": "gal",
+    "gallon": "gal",
+    "gallons": "gal",
+    "ml": "ml",
+    "milliliter": "ml",
+    "milliliters": "ml",
+    "millilitre": "ml",
+    "millilitres": "ml",
+    "l": "l",
+    "liter": "l",
+    "liters": "l",
+    "litre": "l",
+    "litres": "l",
+    # Weight aliases
+    "g": "g",
+    "gram": "g",
+    "grams": "g",
+    "kg": "kg",
+    "kilogram": "kg",
+    "kilograms": "kg",
+    "oz": "oz",
+    "ounce": "oz",
+    "ounces": "oz",
+    "lb": "lb",
+    "lbs": "lb",
+    "pound": "lb",
+    "pounds": "lb",
+}
+
+
+def _normalize_ai_unit(raw_value):
+    """
+    Normalize AI-provided units to allowed sets.
+    Returns tuple of (unit_type, normalized_value, note_if_invalid)
+    """
+    if raw_value is None:
+        return None, None, None
+
+    original = str(raw_value).strip()
+    if not original:
+        return None, None, None
+
+    cleaned = original.lower().strip()
+    cleaned = cleaned.replace(".", "")
+    cleaned = cleaned.replace("-", " ")
+    cleaned = " ".join(cleaned.split())
+
+    alias = UNIT_ALIAS_MAP.get(cleaned)
+    if alias is None:
+        alias = UNIT_ALIAS_MAP.get(cleaned.replace(" ", "_"))
+
+    candidate = alias or cleaned.replace(" ", "_")
+
+    if candidate in AI_ALLOWED_VOLUME_UNITS:
+        return "volume", candidate, None
+    if candidate in AI_ALLOWED_WEIGHT_UNITS:
+        return "weight", candidate, None
+
+    return None, None, original
+
 TAG_INSTRUCTION_MAP = {
     "contains_dairy": "Recipe must be dairy free; avoid milk, cheese, butter, yogurt, and any dairy-derived ingredients.",
     "contains_eggs": "Recipe must be egg free; do not include eggs or products made with eggs.",
@@ -49,8 +135,6 @@ TAG_INSTRUCTION_MAP = {
 }
 
 # GENERAL / AUTH VIEWS
-
-
 class Home(APIView):
     def get(self, request):
         return Response({"message": "Welcome to the Recipe Collector API!"})
@@ -691,25 +775,36 @@ def generate_recipe(request):
 
         # Normalise ingredient units to our allowed set
         for ingredient in recipe_json.get("ingredients", []):
-            volume_unit = ingredient.get("volume_unit")
-            weight_unit = ingredient.get("weight_unit")
+            name = str(ingredient.get("name") or "Ingredient").strip() or "Ingredient"
+            notes = []
+            normalized_volume = None
+            normalized_weight = None
 
-            if isinstance(volume_unit, str):
-                volume_unit = volume_unit.strip().lower() or None
-            if isinstance(weight_unit, str):
-                weight_unit = weight_unit.strip().lower() or None
+            for unit_field in ("volume_unit", "weight_unit"):
+                unit_type, normalized_value, invalid_note = _normalize_ai_unit(
+                    ingredient.get(unit_field)
+                )
 
-            if weight_unit and weight_unit in AI_ALLOWED_VOLUME_UNITS and not volume_unit:
-                volume_unit = weight_unit
-                weight_unit = None
+                if unit_type == "volume" and normalized_value:
+                    if not normalized_volume:
+                        normalized_volume = normalized_value
+                elif unit_type == "weight" and normalized_value:
+                    if not normalized_weight:
+                        normalized_weight = normalized_value
+                elif invalid_note:
+                    notes.append(invalid_note)
 
-            if volume_unit and volume_unit not in AI_ALLOWED_VOLUME_UNITS:
-                volume_unit = None
-            if weight_unit and weight_unit not in AI_ALLOWED_WEIGHT_UNITS:
-                weight_unit = None
+            ingredient["volume_unit"] = normalized_volume
+            ingredient["weight_unit"] = normalized_weight
 
-            ingredient["volume_unit"] = volume_unit
-            ingredient["weight_unit"] = weight_unit
+            if notes:
+                descriptor = ", ".join(str(note).strip() for note in notes if note)
+                if descriptor:
+                    ingredient["name"] = f"{name} ({descriptor})"
+                else:
+                    ingredient["name"] = name
+            else:
+                ingredient["name"] = name
 
         return Response(recipe_json, status=200)
 
