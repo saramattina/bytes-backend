@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+import json
 
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -9,7 +10,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from openai import OpenAI
-import json
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 
@@ -37,62 +37,6 @@ TAG_LABEL_MAP = {
     "vegetarian": "Vegetarian",
 }
 
-UNIT_ALIAS_MAP = {
-    # Volume aliases
-    "tsp": "tsp",
-    "tsps": "tsp",
-    "teaspoon": "tsp",
-    "teaspoons": "tsp",
-    "tablespoon": "tbsp",
-    "tablespoons": "tbsp",
-    "tbsp": "tbsp",
-    "tbs": "tbsp",
-    "tbspn": "tbsp",
-    "tbspns": "tbsp",
-    "tbspoon": "tbsp",
-    "tbspoons": "tbsp",
-    "fl oz": "fl_oz",
-    "floz": "fl_oz",
-    "fluid ounce": "fl_oz",
-    "fluid ounces": "fl_oz",
-    "cups": "cup",
-    "cup": "cup",
-    "pt": "pt",
-    "pint": "pt",
-    "pints": "pt",
-    "qt": "qt",
-    "quart": "qt",
-    "quarts": "qt",
-    "gal": "gal",
-    "gallon": "gal",
-    "gallons": "gal",
-    "ml": "ml",
-    "milliliter": "ml",
-    "milliliters": "ml",
-    "millilitre": "ml",
-    "millilitres": "ml",
-    "l": "l",
-    "liter": "l",
-    "liters": "l",
-    "litre": "l",
-    "litres": "l",
-    # Weight aliases
-    "g": "g",
-    "gram": "g",
-    "grams": "g",
-    "kg": "kg",
-    "kilogram": "kg",
-    "kilograms": "kg",
-    "oz": "oz",
-    "ounce": "oz",
-    "ounces": "oz",
-    "lb": "lb",
-    "lbs": "lb",
-    "pound": "lb",
-    "pounds": "lb",
-}
-
-
 def _normalize_ai_unit(raw_value):
     """
     Normalize AI-provided units to allowed sets.
@@ -110,16 +54,10 @@ def _normalize_ai_unit(raw_value):
     cleaned = cleaned.replace("-", " ")
     cleaned = " ".join(cleaned.split())
 
-    alias = UNIT_ALIAS_MAP.get(cleaned)
-    if alias is None:
-        alias = UNIT_ALIAS_MAP.get(cleaned.replace(" ", "_"))
-
-    candidate = alias or cleaned.replace(" ", "_")
-
-    if candidate in AI_ALLOWED_VOLUME_UNITS:
-        return "volume", candidate, None
-    if candidate in AI_ALLOWED_WEIGHT_UNITS:
-        return "weight", candidate, None
+    if cleaned in AI_ALLOWED_VOLUME_UNITS:
+        return "volume", cleaned, None
+    if cleaned in AI_ALLOWED_WEIGHT_UNITS:
+        return "weight", cleaned, None
 
     return None, None, original
 
@@ -670,7 +608,7 @@ class DeleteAccountView(APIView):
             {"message": "Account deleted successfully"}, status=status.HTTP_200_OK
         )
 
-
+# AI CODE
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def generate_recipe(request):
@@ -695,7 +633,7 @@ def generate_recipe(request):
 
     Each recipe must include:
     - title (string)
-    - notes (short description, 1–3 sentences about flavor and nutrition, total cook/prep time, macros for the recipe)
+    - notes (short description, 1–3 sentences about flavor and nutrition, total cook/prep time, macros for the recipe). Append this sentence to the end of the notes field: "DISCLAIMER: AI may mislabel dietary tags or ingredients. Always double-check ingredients and allergens before cooking."
     - tags (list of lowercase strings, e.g. ["contains_dairy", "spicy"])
     - ingredients (list of objects: {name, quantity, volume_unit, weight_unit})
     - steps (list of objects: {step (int), description (string)})
@@ -707,6 +645,18 @@ def generate_recipe(request):
     - It's okay to also use not volume/weight measurements, but if you don't then add it to the ingredient name with the syntax of "INGREDIENT-NAME (INGREDIENT-MEASUREMENT)"
     - Each ingredient must include **either/none** volume_unit or weight_unit (never both).
     - If a real-world ingredient doesn't use a measurable unit like "clove" or "slice", convert it into a measurable one (e.g., 1 garlic clove → 1 tsp minced garlic), or if that’s not possible, set both units to null and specify the non-measurable form directly in the ingredient name (e.g., "Garlic Clove", quantity: 1).
+
+    Tag Rules (VERY IMPORTANT):
+    - You must evaluate every tag in this allowed list and include ALL that apply, even if the user did not select them:
+        "no_dairy": recipe contains no dairy ingredients (milk, cheese, butter, yogurt, cream, ghee)
+        "no_eggs": recipe contains no egg-based ingredients
+        "no_gluten": recipe contains no wheat, barley, rye, or gluten-containing grains
+        "no_nuts": recipe contains no tree nuts or peanuts (including nut butters)
+        "no_shellfish": recipe contains no shellfish (shrimp, crab, lobster, mussels, clams, scallops, oysters, etc.)
+        "spicy": recipe has noticeable heat/spice from peppers, chili, hot sauce, etc.
+        "vegan": recipe contains zero animal products (no meat, poultry, seafood, dairy, eggs, honey, gelatin)
+        "vegetarian": recipe contains no meat, poultry, or seafood (dairy and eggs are acceptable)
+    - Only use the exact tag values above (all lowercase, underscores). Do not invent new tag names.
 
     **Cooking & Flavor Style:**
     - Always include realistic cooking details:
@@ -723,7 +673,7 @@ def generate_recipe(request):
 
     {
     "title": "Creamy Spicy Chicken Rice Bowl",
-    "notes": "A flavorful, high-protein rice bowl with tender chicken, sautéed spinach, and a creamy yogurt-sriracha sauce. Cook time: 20 minutes, prep time: 15 minutes",
+    "notes": "A flavorful, high-protein rice bowl with tender chicken, sautéed spinach, and a creamy yogurt-sriracha sauce. Cook time: 20 minutes, prep time: 15 minutes. DISCLAIMER: AI may mislabel tags or ingredients; always double-check ingredients before cooking.",
     "tags": ["contains_dairy", "spicy"],
     "ingredients": [
         {"name": "Chicken Breast", "quantity": 200, "weight_unit": "g", "volume_unit": null},
