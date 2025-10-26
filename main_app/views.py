@@ -159,7 +159,8 @@ class RecipeDetail(generics.RetrieveUpdateDestroyAPIView):
         if "image" in request.FILES and instance.image:
             instance.image.delete(save=False)
 
-        serializer = self.get_serializer(instance, data=data)
+        partial_update = request.method.upper() == "PATCH"
+        serializer = self.get_serializer(instance, data=data, partial=partial_update)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
