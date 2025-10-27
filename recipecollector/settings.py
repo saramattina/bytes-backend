@@ -38,7 +38,7 @@ DEBUG = True
 ALLOWED_HOSTS = ['bytes-backend-production.up.railway.app', '127.0.0.1']
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://bytes-backend-production.up.railway.app",
+    "bytes-backend-production.up.railway.app",
 ]
 
 
