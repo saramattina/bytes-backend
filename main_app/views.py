@@ -523,6 +523,13 @@ class UpdateUsernameView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Check if new username is the same as current username
+        if new_username == user.username:
+            return Response(
+                {"username": ["New username must be different from current username."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Check if username already exists (excluding current user)
         if User.objects.filter(username=new_username).exclude(id=user.id).exists():
             return Response(
