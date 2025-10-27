@@ -35,7 +35,11 @@ SECRET_KEY = "django-insecure-me05hp1%#u!*py-bgf77n*@ybzljmmw_%uehh6ik%j^1&b6xbu
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['bytes-backend-production.up.railway.app']
+ALLOWED_HOSTS = ['bytes-backend-production.up.railway.app', '127.0.0.1']
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://bytes-backend-production.up.railway.app",
+]
 
 
 # Application definition
@@ -101,12 +105,23 @@ WSGI_APPLICATION = "recipecollector.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-   "default": dj_database_url.config(
-        default=os.getenv("DATABASE_URL"),  # NEW
-        conn_max_age=600,
-    )
-}
+ENVIRONMENT = os.getenv("DJANGO_ENV", "development")
+
+if ENVIRONMENT == "production":
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=os.getenv("DATABASE_URL"),
+            conn_max_age=600,
+        )
+    }
+else:
+    # Local development — use SQLite or local Postgres
+   DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation
