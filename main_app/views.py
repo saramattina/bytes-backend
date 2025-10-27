@@ -3,6 +3,10 @@ import json
 
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import send_mail
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
 from rest_framework import generics, status, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -21,6 +25,8 @@ from .serializers import (
     IngredientSerializer,
     StepSerializer,
     GroceryListItemSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
 )
 
 AI_ALLOWED_VOLUME_UNITS = {"tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "ml", "l"}
@@ -842,3 +848,94 @@ def get_measurement_type(volume_unit, weight_unit):
     if weight_unit:
         return "weight"
     return "count"
+
+
+# PASSWORD RESET VIEWS
+class PasswordResetRequestView(APIView):
+    """
+    Send password reset email with token link
+    POST: { "email": "user@example.com" }
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        user = User.objects.get(email=email)
+
+        # Generate token and uid
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+
+        # Build reset link for frontend
+        frontend_url = "http://localhost:5173"  # Your frontend URL
+        reset_link = f"{frontend_url}/reset-password/{uid}/{token}"
+
+        # Send email
+        subject = "Password Reset Request - Bytes.AI"
+        message = f"""
+Hello {user.username},
+
+You requested a password reset for your Bytes.AI account.
+
+Click the link below to reset your password:
+{reset_link}
+
+This link will expire in 1 hour.
+
+If you didn't request this, please ignore this email.
+
+Best regards,
+Bytes.AI Team
+        """
+
+        try:
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+            return Response(
+                {"message": "Password reset email sent successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to send email: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class PasswordResetConfirmView(APIView):
+    """
+    Reset password with token
+    POST: {
+        "uid": "base64-encoded-user-id",
+        "token": "reset-token",
+        "new_password": "newpass123",
+        "new_password2": "newpass123"
+    }
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.validated_data["user"]
+        new_password = serializer.validated_data["new_password"]
+
+        # Set the new password
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password has been reset successfully."},
+            status=status.HTTP_200_OK,
+        )

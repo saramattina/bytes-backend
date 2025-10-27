@@ -2,6 +2,8 @@ import json
 
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 
 from .models import Recipe, Ingredient, Step, GroceryListItem
@@ -130,4 +132,39 @@ class RecipeSerializer(serializers.ModelSerializer):
                 data["image"] = instance.image.url
         else:
             data["image"] = None
+        return data
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer for requesting a password reset email"""
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("No user found with this email address.")
+        return value
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer for confirming password reset with token"""
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password2 = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data["new_password"] != data["new_password2"]:
+            raise serializers.ValidationError({"new_password": "Passwords do not match."})
+
+        # Validate token
+        try:
+            uid = urlsafe_base64_decode(data["uid"]).decode()
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError({"uid": "Invalid user ID."})
+
+        if not default_token_generator.check_token(user, data["token"]):
+            raise serializers.ValidationError({"token": "Invalid or expired token."})
+
+        data["user"] = user
         return data

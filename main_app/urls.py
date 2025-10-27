@@ -21,6 +21,8 @@ from .views import (
     UpdatePasswordView,
     DeleteAccountView,
     generate_recipe,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
 )
 
 urlpatterns = [
@@ -79,6 +81,17 @@ urlpatterns = [
         "users/update-password/", UpdatePasswordView.as_view(), name="update-password"
     ),
     path("users/delete-account/", DeleteAccountView.as_view(), name="delete-account"),
+    # Password Reset
+    path(
+        "users/password-reset/",
+        PasswordResetRequestView.as_view(),
+        name="password-reset-request",
+    ),
+    path(
+        "users/password-reset-confirm/",
+        PasswordResetConfirmView.as_view(),
+        name="password-reset-confirm",
+    ),
     # Ai
     path("recipes/generate/", generate_recipe, name="generate-recipe"),
 ]
