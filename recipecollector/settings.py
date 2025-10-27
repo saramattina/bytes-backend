@@ -14,6 +14,8 @@ from pathlib import Path
 
 import os
 
+import dj_database_url 
+
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -62,6 +64,7 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -99,10 +102,10 @@ WSGI_APPLICATION = "recipecollector.wsgi.application"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+   "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL"),  # NEW
+        conn_max_age=600,
+    )
 }
 
 
@@ -142,6 +145,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles" 
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -175,9 +179,14 @@ STORAGES = {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
     },
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+STORAGES["default"] = { 
+    "BACKEND": "storages.backends.s3boto3.S3Boto3Storage"
+}
+
 
 # Use the default AWS hostname; boto3 handles region-specific signing.
 _aws_base_url = f"https://{AWS_S3_CUSTOM_DOMAIN}"
