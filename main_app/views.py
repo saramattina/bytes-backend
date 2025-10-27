@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+import json
 
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -9,7 +10,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from openai import OpenAI
-import json
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 
@@ -37,6 +37,30 @@ TAG_LABEL_MAP = {
     "vegetarian": "Vegetarian",
 }
 
+def _normalize_ai_unit(raw_value):
+    """
+    Normalize AI-provided units to allowed sets.
+    Returns tuple of (unit_type, normalized_value, note_if_invalid)
+    """
+    if raw_value is None:
+        return None, None, None
+
+    original = str(raw_value).strip()
+    if not original:
+        return None, None, None
+
+    cleaned = original.lower().strip()
+    cleaned = cleaned.replace(".", "")
+    cleaned = cleaned.replace("-", " ")
+    cleaned = " ".join(cleaned.split())
+
+    if cleaned in AI_ALLOWED_VOLUME_UNITS:
+        return "volume", cleaned, None
+    if cleaned in AI_ALLOWED_WEIGHT_UNITS:
+        return "weight", cleaned, None
+
+    return None, None, original
+
 TAG_INSTRUCTION_MAP = {
     "contains_dairy": "Recipe must be dairy free; avoid milk, cheese, butter, yogurt, and any dairy-derived ingredients.",
     "contains_eggs": "Recipe must be egg free; do not include eggs or products made with eggs.",
@@ -49,8 +73,6 @@ TAG_INSTRUCTION_MAP = {
 }
 
 # GENERAL / AUTH VIEWS
-
-
 class Home(APIView):
     def get(self, request):
         return Response({"message": "Welcome to the Recipe Collector API!"})
@@ -586,7 +608,7 @@ class DeleteAccountView(APIView):
             {"message": "Account deleted successfully"}, status=status.HTTP_200_OK
         )
 
-
+# AI CODE
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def generate_recipe(request):
@@ -611,16 +633,30 @@ def generate_recipe(request):
 
     Each recipe must include:
     - title (string)
-    - notes (short description, 1–3 sentences about flavor and nutrition, total cook/prep time, macros for the recipe)
+    - notes (short description, 1–3 sentences about flavor and nutrition, total cook/prep time, macros for the recipe). Append this sentence to the end of the notes field: "DISCLAIMER: AI may mislabel dietary tags or ingredients. Always double-check ingredients and allergens before cooking."
     - tags (list of lowercase strings, e.g. ["contains_dairy", "spicy"])
     - ingredients (list of objects: {name, quantity, volume_unit, weight_unit})
     - steps (list of objects: {step (int), description (string)})
 
     Ingredient Rules:
-    - Use only these allowed `volume_unit` values: ["tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "ml", "l"]
-    - Use only these allowed `weight_unit` values: ["g", "kg", "oz", "lb"]
+    - When it comes to volume/weight measurements, only use these allowed values:
+        AI_ALLOWED_VOLUME_UNITS = {"tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "ml", "l"}
+        AI_ALLOWED_WEIGHT_UNITS = {"g", "kg", "oz", "lb"}
+    - It's okay to also use not volume/weight measurements, but if you don't then add it to the ingredient name with the syntax of "INGREDIENT-NAME (INGREDIENT-MEASUREMENT)"
     - Each ingredient must include **either/none** volume_unit or weight_unit (never both).
     - If a real-world ingredient doesn't use a measurable unit like "clove" or "slice", convert it into a measurable one (e.g., 1 garlic clove → 1 tsp minced garlic), or if that’s not possible, set both units to null and specify the non-measurable form directly in the ingredient name (e.g., "Garlic Clove", quantity: 1).
+
+    Tag Rules (VERY IMPORTANT):
+    - You must evaluate every tag in this allowed list and include ALL that apply, even if the user did not select them:
+        "no_dairy": recipe contains no dairy ingredients (milk, cheese, butter, yogurt, cream, ghee)
+        "no_eggs": recipe contains no egg-based ingredients
+        "no_gluten": recipe contains no wheat, barley, rye, or gluten-containing grains
+        "no_nuts": recipe contains no tree nuts or peanuts (including nut butters)
+        "no_shellfish": recipe contains no shellfish (shrimp, crab, lobster, mussels, clams, scallops, oysters, etc.)
+        "spicy": recipe has noticeable heat/spice from peppers, chili, hot sauce, etc.
+        "vegan": recipe contains zero animal products (no meat, poultry, seafood, dairy, eggs, honey, gelatin)
+        "vegetarian": recipe contains no meat, poultry, or seafood (dairy and eggs are acceptable)
+    - Only use the exact tag values above (all lowercase, underscores). Do not invent new tag names.
 
     **Cooking & Flavor Style:**
     - Always include realistic cooking details:
@@ -637,7 +673,7 @@ def generate_recipe(request):
 
     {
     "title": "Creamy Spicy Chicken Rice Bowl",
-    "notes": "A flavorful, high-protein rice bowl with tender chicken, sautéed spinach, and a creamy yogurt-sriracha sauce. Cook time: 20 minutes, prep time: 15 minutes",
+    "notes": "A flavorful, high-protein rice bowl with tender chicken, sautéed spinach, and a creamy yogurt-sriracha sauce. Cook time: 20 minutes, prep time: 15 minutes. DISCLAIMER: AI may mislabel tags or ingredients; always double-check ingredients before cooking.",
     "tags": ["contains_dairy", "spicy"],
     "ingredients": [
         {"name": "Chicken Breast", "quantity": 200, "weight_unit": "g", "volume_unit": null},
@@ -691,25 +727,36 @@ def generate_recipe(request):
 
         # Normalise ingredient units to our allowed set
         for ingredient in recipe_json.get("ingredients", []):
-            volume_unit = ingredient.get("volume_unit")
-            weight_unit = ingredient.get("weight_unit")
+            name = str(ingredient.get("name") or "Ingredient").strip() or "Ingredient"
+            notes = []
+            normalized_volume = None
+            normalized_weight = None
 
-            if isinstance(volume_unit, str):
-                volume_unit = volume_unit.strip().lower() or None
-            if isinstance(weight_unit, str):
-                weight_unit = weight_unit.strip().lower() or None
+            for unit_field in ("volume_unit", "weight_unit"):
+                unit_type, normalized_value, invalid_note = _normalize_ai_unit(
+                    ingredient.get(unit_field)
+                )
 
-            if weight_unit and weight_unit in AI_ALLOWED_VOLUME_UNITS and not volume_unit:
-                volume_unit = weight_unit
-                weight_unit = None
+                if unit_type == "volume" and normalized_value:
+                    if not normalized_volume:
+                        normalized_volume = normalized_value
+                elif unit_type == "weight" and normalized_value:
+                    if not normalized_weight:
+                        normalized_weight = normalized_value
+                elif invalid_note:
+                    notes.append(invalid_note)
 
-            if volume_unit and volume_unit not in AI_ALLOWED_VOLUME_UNITS:
-                volume_unit = None
-            if weight_unit and weight_unit not in AI_ALLOWED_WEIGHT_UNITS:
-                weight_unit = None
+            ingredient["volume_unit"] = normalized_volume
+            ingredient["weight_unit"] = normalized_weight
 
-            ingredient["volume_unit"] = volume_unit
-            ingredient["weight_unit"] = weight_unit
+            if notes:
+                descriptor = ", ".join(str(note).strip() for note in notes if note)
+                if descriptor:
+                    ingredient["name"] = f"{name} ({descriptor})"
+                else:
+                    ingredient["name"] = name
+            else:
+                ingredient["name"] = name
 
         return Response(recipe_json, status=200)
 
