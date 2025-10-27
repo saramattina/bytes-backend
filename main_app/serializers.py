@@ -13,7 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'password', 'password2']
+        fields = ["id", "username", "email", "password", "password2"]
         read_only_fields = ["id"]
 
     def validate_email(self, value):
@@ -43,9 +43,21 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 
 class GroceryListItemSerializer(serializers.ModelSerializer):
+    def get_quantity(self, obj):
+        return round(obj.quantity, 2) if obj.quantity is not None else None
+
     class Meta:
         model = GroceryListItem
-        fields = ["id", "user", "name", "quantity", "volume_unit", "weight_unit", "checked", "created_at"]
+        fields = [
+            "id",
+            "user",
+            "name",
+            "quantity",
+            "volume_unit",
+            "weight_unit",
+            "checked",
+            "created_at",
+        ]
         read_only_fields = ["id", "user", "created_at"]
 
 
