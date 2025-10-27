@@ -57,6 +57,7 @@ class GroceryListItem(models.Model):
     weight_unit = models.CharField(max_length=10, blank=True, null=True)
     checked = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    
 
     def __str__(self):
         return f"{self.name} - {self.user.username}"

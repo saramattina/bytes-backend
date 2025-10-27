@@ -37,6 +37,7 @@ TAG_LABEL_MAP = {
     "vegetarian": "Vegetarian",
 }
 
+
 def _normalize_ai_unit(raw_value):
     """
     Normalize AI-provided units to allowed sets.
@@ -61,6 +62,7 @@ def _normalize_ai_unit(raw_value):
 
     return None, None, original
 
+
 TAG_INSTRUCTION_MAP = {
     "contains_dairy": "Recipe must be dairy free; avoid milk, cheese, butter, yogurt, and any dairy-derived ingredients.",
     "contains_eggs": "Recipe must be egg free; do not include eggs or products made with eggs.",
@@ -71,6 +73,7 @@ TAG_INSTRUCTION_MAP = {
     "vegan": "Recipe must be fully plant based and contain no animal products.",
     "vegetarian": "Recipe must be vegetarian; no meat, poultry, or seafood.",
 }
+
 
 # GENERAL / AUTH VIEWS
 class Home(APIView):
@@ -608,6 +611,7 @@ class DeleteAccountView(APIView):
             {"message": "Account deleted successfully"}, status=status.HTTP_200_OK
         )
 
+
 # AI CODE
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
@@ -618,14 +622,37 @@ def generate_recipe(request):
     """
     user_prompt = request.data.get("prompt", "").strip()
     tags = request.data.get("tags", [])
+    use_grocery_list = request.data.get("use_grocery_list", False)
+
     if not user_prompt:
         return Response({"error": "Prompt is required"}, status=400)
+    grocery_list_text = None
+
+    if use_grocery_list:
+        grocery_items_qs = GroceryListItem.objects.filter(
+            user=request.user, checked=True
+        ).values_list("name", flat=True)
+
+        if not grocery_items_qs:
+            return Response(
+                {
+                    "error: No checked grocery items found. Please check items to base the recipe on"
+                },
+                status=400,
+            )
+        grocery_list_text = ", ".join(grocery_items_qs)
+    else:
+        grocery_list_text = None
 
     tag_labels = [TAG_LABEL_MAP.get(tag, tag.replace("_", " ")) for tag in tags]
-    tag_instructions = [TAG_INSTRUCTION_MAP.get(tag) for tag in tags if TAG_INSTRUCTION_MAP.get(tag)]
+    tag_instructions = [
+        TAG_INSTRUCTION_MAP.get(tag) for tag in tags if TAG_INSTRUCTION_MAP.get(tag)
+    ]
+
     tags_text = ", ".join(tag_labels) if tag_labels else "no dietary tags"
     instruction_text = " ".join(tag_instructions) if tag_instructions else ""
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
     system_instructions = """
     You are a professional chef and nutrition-focused recipe generator AI.
     Your goal is to generate **delicious, realistic, step-by-step recipes** for a cooking app.
@@ -708,6 +735,13 @@ def generate_recipe(request):
                         f"Generate a recipe based on this request: '{user_prompt}'. "
                         f"The recipe should align with these tags: '{tags_text}'. "
                         f"Dietary requirements: {instruction_text}"
+                        + (
+                            f"\n\nHere's what the user currently has available in their grocery list: {grocery_list_text}."
+                            if grocery_list_text
+                            else ""
+                        )
+                        + "\n\nOnly use ingredients from the grocery list if provided, "
+                        "and stay consistent with the format and tag rules above"
                     ),
                 },
             ],
