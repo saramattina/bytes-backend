@@ -681,7 +681,7 @@ def generate_recipe(request):
     - If a real-world ingredient doesn't use a measurable unit like "clove" or "slice", convert it into a measurable one (e.g., 1 garlic clove → 1 tsp minced garlic), or if that’s not possible, set both units to null and specify the non-measurable form directly in the ingredient name (e.g., "Garlic Clove", quantity: 1).
 
     Tag Rules (VERY IMPORTANT):
-    - You must evaluate every tag in this allowed list and include ALL that apply, even if the user did not select them:
+    - You must analyze the final ingredient list (and any allergens implied) against every tag in this allowed list and include ALL that apply, even if the user did not select them:
         "no_dairy": recipe contains no dairy ingredients (milk, cheese, butter, yogurt, cream, ghee)
         "no_eggs": recipe contains no egg-based ingredients
         "no_gluten": recipe contains no wheat, barley, rye, or gluten-containing grains
@@ -690,7 +690,7 @@ def generate_recipe(request):
         "spicy": recipe has noticeable heat/spice from peppers, chili, hot sauce, etc.
         "vegan": recipe contains zero animal products (no meat, poultry, seafood, dairy, eggs, honey, gelatin)
         "vegetarian": recipe contains no meat, poultry, or seafood (dairy and eggs are acceptable)
-    - Only use the exact tag values above (all lowercase, underscores). Do not invent new tag names.
+    - After building the recipe, double-check the ingredients and make sure the tags array reflects every applicable tag (add any missing ones, remove any that shouldn’t apply). Only use the exact tag values above (all lowercase, underscores). Do not invent new tag names.
 
     **Cooking & Flavor Style:**
     - Always include realistic cooking details:
