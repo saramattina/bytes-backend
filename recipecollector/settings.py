@@ -35,12 +35,17 @@ SECRET_KEY = "django-insecure-me05hp1%#u!*py-bgf77n*@ybzljmmw_%uehh6ik%j^1&b6xbu
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['bytes-backend-production.up.railway.app', '127.0.0.1']
+ALLOWED_HOSTS = ['bytes-backend-production.up.railway.app', '127.0.0.1', "localhost"]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://bytes-backend-production.up.railway.app",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
 ]
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # your React frontend
+]
 
 # Application definition
 
@@ -75,10 +80,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-]
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # your React frontend
 ]
 
 ROOT_URLCONF = "recipecollector.urls"
