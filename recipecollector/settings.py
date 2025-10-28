@@ -45,8 +45,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # your React frontend
-    "https://bytesai.netlify.app",  # your Netlify frontend
+    "http://localhost:5173",  # your React local frontend
+    "https://bytesai.netlify.app",  # your Netlify online frontend
 ]
 
 # Application definition
